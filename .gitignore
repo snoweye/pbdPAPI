@@ -26,6 +26,11 @@ src/configure
 *.out
 *.toc
 *.tex.backup
+*.pdf
+
+
+### Misc
+*.indent.pro
 
 
 ### PAPI build
@@ -37,6 +42,7 @@ src/papi-*/src/papi_events_table.h
 src/papi-*/src/papi_fwrappers_.c
 src/papi-*/src/papi_fwrappers__.c
 src/papi-*/src/upper_PAPI_FWRAPPERS.c
+src/papi-*/src/papi.pc
 
 src/papi-*/src/ctests/*
 src/papi-*/src/utils/*
@@ -63,5 +69,4 @@ src/papi-*/src/libpfm4/lib/libpfm.so.4.4.0
 src/papi-*/src/man/
 src/papi-*/src/testlib/Makefile.target
 
-src/papi-*/.indent.pro
 src/libipcm/*/.bdsignore.all
