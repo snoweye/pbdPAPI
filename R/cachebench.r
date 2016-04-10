@@ -1,14 +1,46 @@
-# Note, this is very fragile and experimental
-### TODO include more than just misses...
-cachebench <- function(..., nreps=10) 
+#' cachebench
+#' 
+#' A benchmarker for measuring cache misses of multiple runs of
+#' one or more functions.
+#' 
+#' @details
+#' Currently only total cache misses are profiled.  Future versions
+#' will allow the full generality of the \code{systme.cache()}
+#' function.
+#' 
+#' @param ...
+#' Expressions to be benchmarked.
+#' @param type,events
+#' See \code{?system.cache()}.
+#' @param nreps
+#' Number of replications for each expression.
+#' 
+#' @return
+#' A dataframe (class "cachebench") containng the timings and some
+#' basic summary statistics.
+#' 
+#' @examples
+#' \dontrun{
+#' pbdPAPI::cachebench(rnorm(1e4), rnorm(2e4), rnorm(3e4))
+#' }
+#' 
+#' @export
+cachebench <- function(..., type="miss", events="total", nreps=10) 
 {
   l <- list(...)
   len <- length(l)
   
-  type <- "Cache Misses"
-  
   if (len == 0)
     stop("No expressions")
+  
+  if (!is.numeric(nreps))
+    stop("argument 'nreps' must be a positive integer")
+  nreps <- as.integer(nreps)
+  if (is.na(nreps) || nreps < 1)
+    stop("argument 'nreps' must be a positive integer")
+  
+  
+  typename <- paste("Cache", titlecase(pluralize(type)), "with", nreps, "Replications")
   
   args <- match.call()[-1]
   names <- names(args)
@@ -24,9 +56,9 @@ cachebench <- function(..., nreps=10)
     argnames <- sapply(1:len, function(i) if (argnames[i] == "") charargs[i] else argnames[i])
   }
   
-  template <- system.cache(NULL)
+  template <- system.cache(NULL, type=type, events=events, gcFirst=TRUE, burnin=TRUE)
   colnames <- names(template)
-  ret <- lapply(1:len, function(.) {tmp <- matrix(0L, nrow=nreps, ncol=3); colnames(tmp) <- colnames; tmp})
+  ret <- lapply(1:len, function(.) {tmp <- matrix(0L, nrow=nreps, ncol=length(template)); colnames(tmp) <- colnames; tmp})
   names(ret) <- argnames
   class(ret) <- "cachebench"
   
@@ -34,7 +66,7 @@ cachebench <- function(..., nreps=10)
   {
     for (j in 1:nreps)
     {
-      tmp <- system.cache(expr=eval(args[[i]]))
+      tmp <- system.cache(expr=eval(args[[i]]), type=type, events=events, gcFirst=FALSE, burnin=FALSE)
       ret[[i]][j, ] <- as.integer(tmp)
     }
   }
@@ -47,72 +79,26 @@ cachebench <- function(..., nreps=10)
   summarystats <- cbind(summarystats, means)
   ret$summarystats <- summarystats
   
-  ret$type <- type
+  ret$type <- typename
+  class(ret) <- "cachebench"
   
   return(ret)
 }
 
 
 
-print.cachebench <- function(x)
+#' Prints cachebench objects
+#' 
+#' @param x
+#' A papi_output object to print.
+#' @param ...
+#' Extra arguments (ignored).
+#' 
+#' @name print-cachebench
+#' @method print cachebench
+#' @export
+print.cachebench <- function(x, ...)
 {
   cat(x$type, ":\n")
   print(x$summarystats)
 }
-
-
-
-cachemelt <- function(df)
-{
-  len <- ncol(df) - 1
-  value <- sapply(sapply(1:len, function(i) df[, i]), c)
-  nm <- names(df)
-  variable <- as.character(sapply(sapply(1:len, function(i) rep(nm[i], nrow(df))), c))
-  Test <- rep(df$Test, len)
-  
-  data.frame(Test=Test, variable=variable, value=value)
-}
-
-
-
-plot.cachebench <- function(x, levels=1:3, axis.x.angle=0)
-{
-  ### To fool R CMD check
-  Test <- value <- NULL
-  rm(list=c("Test", "value"))
-  
-  
-  tmp <- x
-  tmp$summarystats <- NULL
-  tmp$type <- NULL
-  
-  nm <- names(tmp)
-  df <- do.call(rbind, lapply(1:length(tmp), function(i) data.frame(tmp[[i]], nm[i])))
-  df <- df[, c(levels, 4)]
-  
-  colnames(df)[ncol(df)] <- "Test"
-  colnames(df) <- gsub(colnames(df), pattern=".cache.misses", replacement="", fixed=TRUE)
-  
-  df <- cachemelt(df)
-  
-  g1 <- 
-    ggplot(df, aes(Test, value)) +
-      stat_boxplot(geom ='errorbar')+
-      geom_boxplot() + 
-      theme(axis.text.x=element_text(angle=axis.x.angle, hjust=1)) +
-      xlab("Test") + 
-      ylab("") + 
-      ggtitle(x$type) + 
-      facet_wrap(~ variable)
-  
-#  g2 <- g3 <- g1
-#  
-#  plots <- list(g1=g1, g2=g2, g3=g3)
-#  label <- x$type
-#  row_plotter(plots, levels, label, show.title=TRUE)
-  g1
-}
-
-### Example
-#x <- cachebench(A=rnorm(1e4), B=rnorm(1e5))
-#plot(x)
